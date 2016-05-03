@@ -225,9 +225,14 @@
 # endif
 #endif
 
+/* Turn on initrd Support */
+#define CONFIG_SUPPORT_RAW_INITRD
+
 /* Default environment */
 #define CONFIG_EXTRA_ENV_SETTINGS	\
+	"fdt_file="CONFIG_DEFAULT_DEVICE_TREE".dtb\0" \
 	"ethaddr=00:0a:35:00:01:22\0"	\
+	"console=ttyPS0,115200\0" \
 	"kernel_image=uImage\0"	\
 	"kernel_load_address=0x2080000\0" \
 	"ramdisk_image=uramdisk.image.gz\0"	\
@@ -235,6 +240,8 @@
 	"devicetree_image=devicetree.dtb\0"	\
 	"devicetree_load_address=0x2000000\0"	\
 	"bitstream_image=system.bit.bin\0"	\
+	"bootdir=\0" \
+	"fdtdir=/lib/firmware/zynq\0" \
 	"boot_image=BOOT.bin\0"	\
 	"loadbit_addr=0x100000\0"	\
 	"loadbootenv_addr=0x2000000\0" \
@@ -245,15 +252,22 @@
 	"fdt_high=0x20000000\0"	\
 	"initrd_high=0x20000000\0"	\
 	"bootenv=uEnv.txt\0" \
+	"mmcdev=0\0" \
+	"mmcpart=\0" \
+	"mmcroot=/dev/mmcblk0p2 rw\0" \
+	"mmcrootfstype=ext4 rootwait\0" \
+	"mmcargs=setenv bootargs console=${console} " \
+		"${optargs}" \
+		"root=${mmcroot} " \
+		"rootfstype=${mmcrootfstype} " \
+		"${cmdline}\0" \
+	"loadimage=load mmc ${bootpart} ${kernel_load_address} ${bootdir}/${bootfile}\0" \
+	"loadrd=load mmc ${bootpart} ${ramdisk_load_address} ${bootdir}/${rdfile}; setenv rdsize ${filesize}\0" \
+	"loadfdt=echo loading ${fdtdir}${fdt_file} ...;  load mmc ${bootpart} ${devicetree_load_address} ${fdtdir}/${fdt_file}\0" \
 	"loadbootenv=load mmc 0 ${loadbootenv_addr} ${bootenv}\0" \
 	"importbootenv=echo Importing environment from SD ...; " \
 		"env import -t ${loadbootenv_addr} $filesize\0" \
 	"sd_uEnvtxt_existence_test=test -e mmc 0 /uEnv.txt\0" \
-	"preboot=if test $modeboot = sdboot && env run sd_uEnvtxt_existence_test; " \
-			"then if env run loadbootenv; " \
-				"then env run importbootenv; " \
-			"fi; " \
-		"fi; \0" \
 	"mmc_loadbit=echo Loading bitstream from SD/MMC/eMMC to RAM.. && " \
 		"mmcinfo && " \
 		"load mmc 0 ${loadbit_addr} ${bitstream_image} && " \
@@ -280,13 +294,79 @@
 			"echo Running uenvcmd ...; " \
 			"run uenvcmd; " \
 		"fi\0" \
-	"sdboot=if mmcinfo; then " \
-			"run uenvboot; " \
-			"echo Copying Linux from SD to RAM... && " \
-			"load mmc 0 ${kernel_load_address} ${kernel_image} && " \
-			"load mmc 0 ${devicetree_load_address} ${devicetree_image} && " \
-			"load mmc 0 ${ramdisk_load_address} ${ramdisk_image} && " \
-			"bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
+	"sdboot=mmc dev ${mmcdev}; " \
+		"if mmc rescan; then " \
+			"echo Checking for: /boot/uEnv.txt ...; " \
+			"for i in 2 3 4 5 6 7 ; do " \
+				"setenv mmcpart ${i};" \
+				"setenv bootpart ${mmcdev}:${mmcpart};" \
+				"echo Trying interface=mmc bootpart=${bootpart} ...;" \
+				"if test -e mmc ${bootpart} /boot/uEnv.txt; then " \
+					"load mmc ${bootpart} ${loadbootenv_addr} /boot/uEnv.txt;" \
+					"env import -t ${loadbootenv_addr} ${filesize};" \
+					"echo Loaded environment from /boot/uEnv.txt;" \
+					"if test -n ${dtb}; then " \
+						"setenv fdt_file ${dtb};" \
+						"echo Using: dtb=${fdt_file} ...;" \
+					"fi;" \
+					"if test -n ${uenvcmd}; then " \
+						"echo Running uenvcmd: ${uenvcmd} ...;" \
+						"run uenvcmd;" \
+					"fi;" \
+					"echo Skipping FPGA load ...;" \
+					"echo Checking if uname_r is set in /boot/uEnv.txt ...;" \
+					"if test -n ${uname_r}; then " \
+						"echo Running uname_boot ...;" \
+						"setenv mmcroot /dev/mmcblk${mmcdev}p${mmcpart} rw;" \
+						"run uname_boot;" \
+					"fi;" \
+				"fi;" \
+			"done;" \
+		"fi\0" \
+	"uname_boot=" \
+		"setenv bootdir /boot; " \
+		"setenv bootfile vmlinuz-${uname_r}; " \
+		"if test -e mmc ${bootpart} ${bootdir}/${bootfile}; then " \
+			"echo loading ${bootdir}/${bootfile} ...; "\
+			"run loadimage;" \
+			"setenv fdtdir /lib/firmware/zynq/${uname_r}; " \
+			"if test -e mmc ${bootpart} ${fdtdir}/${fdt_file}; then " \
+				"run loadfdt;" \
+			"else " \
+				"setenv fdtdir /lib/firmware/zynq/; " \
+				"if test -e mmc ${bootpart} ${fdtdir}/${fdt_file}; then " \
+					"run loadfdt;" \
+				"else " \
+					"setenv fdtdir /boot/dtbs/${uname_r}; " \
+					"if test -e mmc ${bootpart} ${fdtdir}/${fdt_file}; then " \
+						"run loadfdt;" \
+					"else " \
+	                                        "setenv fdtdir /boot/dtbs/; " \
+ 					        "if test -e mmc ${bootpart} ${fdtdir}/${fdt_file}; then " \
+						      "run loadfdt;" \
+					        "else " \
+					              "echo no dtb found in /lib/firmware/zynq or /boot/dtbs ...; " \
+	                                        "fi;"	 \
+	                                "fi;" \
+				"fi;" \
+			"fi; " \
+			"setenv rdfile initrd.img-${uname_r}; " \
+			"if test -e mmc ${bootpart} ${bootdir}/${rdfile}; then " \
+				"echo loading ${bootdir}/${rdfile} ...; " \
+				"run loadrd;" \
+				"if test -n ${uuid}; then " \
+					"setenv mmcroot UUID=${uuid} ro;" \
+				"fi;" \
+				"run mmcargs;" \
+				"echo debug: [${bootargs}] ... ;" \
+				"echo debug: [bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}] ... ;" \
+				"bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}; " \
+			"else " \
+				"run mmcargs;" \
+				"echo debug: [${bootargs}] ... ;" \
+				"echo debug: [bootz ${kernel_load_address} - ${devicetree_load_address}] ... ;" \
+				"bootz ${kernel_load_address} - ${devicetree_load_address}; " \
+			"fi;" \
 		"fi\0" \
 	"usbboot=if usb start; then " \
 			"run uenvboot; " \
