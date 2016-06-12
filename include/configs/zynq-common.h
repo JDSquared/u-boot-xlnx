@@ -252,12 +252,20 @@
 	"fdt_high=0x20000000\0"	\
 	"initrd_high=0x20000000\0"	\
 	"bootenv=uEnv.txt\0" \
+	"nfs_serverip=10.1.2.2\0" \
+	"nfs_root_dir=/export/rootfs\0" \
+	"nfsargs=setenv bootargs console=${console} " \
+		"${optargs} " \
+		"root=/dev/nfs " \
+		"nfsroot=${nfs_root} rw " \
+        "ip=${ipaddr} " \
+		"${cmdline}\0" \
 	"mmcdev=0\0" \
 	"mmcpart=\0" \
 	"mmcroot=/dev/mmcblk0p2 rw\0" \
 	"mmcrootfstype=ext4 rootwait\0" \
 	"mmcargs=setenv bootargs console=${console} " \
-		"${optargs}" \
+		"${optargs} " \
 		"root=${mmcroot} " \
 		"rootfstype=${mmcrootfstype} " \
 		"${cmdline}\0" \
@@ -278,13 +286,62 @@
 		"echo Copying ramdisk... && " \
 		"cp.b 0xE2620000 ${ramdisk_load_address} ${ramdisk_size} && " \
 		"bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}\0" \
-	"qspiboot=echo Copying Linux from QSPI flash to RAM... && " \
-		"sf probe 0 0 0 && " \
-		"sf read ${kernel_load_address} 0x100000 ${kernel_size} && " \
-		"sf read ${devicetree_load_address} 0x600000 ${devicetree_size} && " \
-		"echo Copying ramdisk... && " \
-		"sf read ${ramdisk_load_address} 0x620000 ${ramdisk_size} && " \
-		"bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}\0" \
+	"qspiboot=if test -n ${nfs_serverip}; then " \
+	        "run nfsboot;" \
+	    "else " \
+	        "echo Copying Linux from QSPI flash to RAM... && " \
+		    "sf probe 0 0 0 && " \
+		    "sf read ${kernel_load_address} 0x100000 ${kernel_size} && " \
+		    "sf read ${devicetree_load_address} 0x600000 ${devicetree_size} && " \
+		    "echo Copying ramdisk... && " \
+		    "sf read ${ramdisk_load_address} 0x620000 ${ramdisk_size} && " \
+		    "bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
+	    "fi;\0" \
+	"nfsboot=echo Booting from NFS server at ${nfs_serverip} ...; " \
+			"setenv nfs_root ${nfs_serverip}:${nfs_root_dir}; " \
+			"nfs ${loadbootenv_addr} ${nfs_root}/boot/uEnv.txt; " \
+			"if test $? -ne 0; then reset; fi; " \
+			"env import -t ${loadbootenv_addr} ${filesize};" \
+			"echo Loaded environment from /boot/uEnv.txt;" \
+			"if test -n ${dtb}; then " \
+				"setenv fdt_file ${dtb};" \
+				"echo Using: dtb=${fdt_file} ...;" \
+			"fi;" \
+			"if test -n ${uenvcmd}; then " \
+				"echo Running uenvcmd [${uenvcmd}] ...;" \
+				"run uenvcmd;" \
+			"fi;" \
+			"if test -n ${uname_r}; then " \
+                "nfs ${kernel_load_address} ${nfs_root}/boot/vmlinuz-${uname_r}; " \
+                "if test $? -ne 0; then " \
+                    "echo Error! NFS server missing vmlinuz-${uname_r}; " \
+                    "reset; " \
+                "fi; " \
+                "setenv fdtdir /lib/firmware/zynq; " \
+                "nfs ${devicetree_load_address} ${nfs_root}${fdtdir}/${fdt_file}; " \
+                "if test $? -ne 0; then " \
+                    "setenv fdtdir /lib/firmware/zynq/${uname_r}; " \
+                    "nfs ${devicetree_load_address} ${nfs_root}${fdtdir}/${fdt_file}; " \
+                    "if test $? -ne 0; then " \
+                        "echo Error! No dtb found; " \
+                        "reset; "\
+                    "fi; " \
+                "fi; " \
+                "echo Loaded dtb from ${fdtdir}/${fdt_file}; " \
+                "nfs ${ramdisk_load_address} ${nfs_root}/boot/initrd.img-${uname_r}; " \
+                "if test $? -ne 0; then " \
+                    "setenv rdsize ${filesize}; " \
+                    "run nfsargs; " \
+    				"echo debug: [${bootargs}] ... ; " \
+				    "echo debug: [bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}] ... ; " \
+				    "bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}; " \
+                "else " \
+				    "run nfsargs;" \
+				    "echo debug: [${bootargs}] ... ;" \
+				    "echo debug: [bootz ${kernel_load_address} - ${devicetree_load_address}] ... ; " \
+				    "bootz ${kernel_load_address} - ${devicetree_load_address}; " \
+                "fi; " \
+            "fi;\0" \
 	"uenvboot=" \
 		"if run loadbootenv; then " \
 			"echo Loaded environment from ${bootenv}; " \
