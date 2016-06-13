@@ -252,12 +252,13 @@
 	"fdt_high=0x20000000\0"	\
 	"initrd_high=0x20000000\0"	\
 	"bootenv=uEnv.txt\0" \
-	"nfs_serverip=\0" \
-	"nfs_root_dir=\0" \
+	"nfs_serverip=10.1.2.2\0" \
+	"nfs_root_dir=/export/rootfs\0" \
 	"nfsargs=setenv bootargs console=${console} " \
 		"${optargs} " \
-		"root=/dev/nfs" \
-		"nfsroot=${nfsroot} rw" \
+		"root=/dev/nfs " \
+		"nfsroot=${nfs_root} rw " \
+        "ip=${ipaddr} " \
 		"${cmdline}\0" \
 	"mmcdev=0\0" \
 	"mmcpart=\0" \
@@ -294,11 +295,11 @@
 		    "sf read ${devicetree_load_address} 0x600000 ${devicetree_size} && " \
 		    "echo Copying ramdisk... && " \
 		    "sf read ${ramdisk_load_address} 0x620000 ${ramdisk_size} && " \
-		    "bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}\0" \
+		    "bootm ${kernel_load_address} ${ramdisk_load_address} ${devicetree_load_address}; " \
 	    "fi;\0" \
 	"nfsboot=echo Booting from NFS server at ${nfs_serverip} ...; " \
 			"setenv nfs_root ${nfs_serverip}:${nfs_root_dir}; " \
-			"nfs ${loadbootenv_addr} ${nfs_root}/boot/uEnv.txt " \
+			"nfs ${loadbootenv_addr} ${nfs_root}/boot/uEnv.txt; " \
 			"if test $? -ne 0; then reset; fi; " \
 			"env import -t ${loadbootenv_addr} ${filesize};" \
 			"echo Loaded environment from /boot/uEnv.txt;" \
@@ -307,7 +308,7 @@
 				"echo Using: dtb=${fdt_file} ...;" \
 			"fi;" \
 			"if test -n ${uenvcmd}; then " \
-				"echo Running uenvcmd: ${uenvcmd} ...;" \
+				"echo Running uenvcmd [${uenvcmd}] ...;" \
 				"run uenvcmd;" \
 			"fi;" \
 			"if test -n ${uname_r}; then " \
@@ -319,7 +320,7 @@
                 "setenv fdtdir /lib/firmware/zynq; " \
                 "nfs ${devicetree_load_address} ${nfs_root}${fdtdir}/${fdt_file}; " \
                 "if test $? -ne 0; then " \
-                    "setenv fdtdir /lib/firmware/zynq/${uname_r};" \
+                    "setenv fdtdir /lib/firmware/zynq/${uname_r}; " \
                     "nfs ${devicetree_load_address} ${nfs_root}${fdtdir}/${fdt_file}; " \
                     "if test $? -ne 0; then " \
                         "echo Error! No dtb found; " \
@@ -331,13 +332,13 @@
                 "if test $? -ne 0; then " \
                     "setenv rdsize ${filesize}; " \
                     "run nfsargs; " \
-    				"echo debug: [${bootargs}] ... ;" \
-				    "echo debug: [bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}] ... ;" \
+    				"echo debug: [${bootargs}] ... ; " \
+				    "echo debug: [bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}] ... ; " \
 				    "bootz ${kernel_load_address} ${ramdisk_load_address}:${rdsize} ${devicetree_load_address}; " \
                 "else " \
 				    "run nfsargs;" \
 				    "echo debug: [${bootargs}] ... ;" \
-				    "echo debug: [bootz ${kernel_load_address} - ${devicetree_load_address}] ... ;" \
+				    "echo debug: [bootz ${kernel_load_address} - ${devicetree_load_address}] ... ; " \
 				    "bootz ${kernel_load_address} - ${devicetree_load_address}; " \
                 "fi; " \
             "fi;\0" \
