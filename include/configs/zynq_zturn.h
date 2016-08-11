@@ -10,13 +10,12 @@
 #ifndef __CONFIG_ZYNQ_ZTURN_H
 #define __CONFIG_ZYNQ_ZTURN_H
 
-#define CONFIG_SYS_SDRAM_SIZE		(1024 * 1024 * 1024)
-
 #define CONFIG_SYS_NO_FLASH
 
 #define CONFIG_ZYNQ_SDHCI0
 #define CONFIG_ZYNQ_USB
-#define CONFIG_ZYNQ_SERIAL_UART1
+#undef CONFIG_PHY_MARVELL
+#define CONFIG_PHY_ATHEROS
 
 #include <configs/zynq-common.h>
 
