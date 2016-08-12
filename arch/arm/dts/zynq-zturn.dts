@@ -20,7 +20,6 @@
 	compatible = "myir,zynq-zturn", "xlnx,zynq-7000";
 
 	aliases {
-		ethernet0 = &gem0;
 		serial0 = &uart1;
 		serial1 = &uart0;
 		spi0 = &qspi;
@@ -28,11 +27,11 @@
 
 	memory {
 		device_type = "memory";
-		reg = <0x0 0x30000000>;
+		reg = <0 0x40000000>;
 	};
 
 	chosen {
-		bootargs = "console=ttyPS0,115200 root=/dev/ram rw earlyprintk";
+		bootargs = "earlyprintk";
 		stdout-path = "serial0:115200n8";
 	};
 };
@@ -55,8 +54,7 @@
 
     phy0: phy@0 {
         compatible = "atheros,ar8035";
-            device_type = "ethernet-phy";
-            reg = <0>;
+        reg = <0>;
     };
 };
 
@@ -69,9 +67,7 @@
 
 &uart0 {
 	status = "okay";
-    current-speed = <115200>;
     port-number = <1>;
-    xlnx,has-modem = <0x0>;
 };
 
 &uart1 {
