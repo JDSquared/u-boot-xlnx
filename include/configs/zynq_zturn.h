@@ -14,6 +14,8 @@
 
 #define CONFIG_ZYNQ_SDHCI0
 #define CONFIG_ZYNQ_USB
+#undef CONFIG_PHY_MARVELL
+#define CONFIG_PHY_ATHEROS
 
 #include <configs/zynq-common.h>
 
